@@ -381,6 +381,7 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
             setIsLocating(false);
         },
         (error) => {
+            console.error('Geolocation Error:', error);
             toast({ title: 'Geolocation Error', description: error.message, variant: 'destructive' });
             setIsLocating(false);
         }

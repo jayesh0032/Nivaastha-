@@ -17,6 +17,8 @@ import { useUserStore } from '@/hooks/use-user-store';
 import { Logo } from '@/components/logo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { indianStates } from '@/lib/location-data';
+import { initializeFirebase } from '@/firebase';
+import { signInWithCustomToken } from 'firebase/auth';
 
 // --- Signup Form Schema ---
 const signupSchema = z.object({
@@ -127,7 +129,7 @@ function LoginForm({ onBack }: { onBack: () => void }) {
   const { login } = useAuthStore();
   const { findUserByMobile } = useUserStore();
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mobileNumber.length !== 10) {
       toast({ title: 'Invalid Mobile Number', description: 'Please enter a valid 10-digit mobile number.', variant: 'destructive' });
@@ -140,27 +142,77 @@ function LoginForm({ onBack }: { onBack: () => void }) {
     }
     
     setIsLoading(true);
-    setTimeout(() => {
-      toast({ title: 'OTP Sent', description: `An OTP has been sent to ${mobileNumber}. (It's 123456)` });
-      setStep(2);
+    try {
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.simulated) {
+          toast({ 
+            title: 'OTP Generated (Simulator)', 
+            description: 'No SMS API Keys found. Check the server console (logs) for the 6-digit OTP!',
+            variant: 'default'
+          });
+        } else {
+          toast({ title: 'OTP Sent', description: `An OTP has been sent to ${mobileNumber}.` });
+        }
+        setStep(2);
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to send OTP', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Login: Failed to send OTP:', error);
+      toast({ title: 'Connection Error', description: 'Failed to connect to server. Please try again.', variant: 'destructive' });
+    } finally {
       setIsLoading(false);
-    }, 400);
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp !== '123456') {
-      toast({ title: 'Invalid OTP', description: 'The OTP you entered is incorrect.', variant: 'destructive' });
+    if (otp.length !== 6) {
+      toast({ title: 'Invalid OTP', description: 'Please enter the 6-digit OTP.', variant: 'destructive' });
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      toast({ title: 'Login Successful', description: 'Welcome back to Nivaastha!' });
-      login(mobileNumber);
-      router.push('/');
+    try {
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber, otp }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast({ title: 'Login Successful', description: 'Welcome back to Nivaastha!' });
+        
+        // PERFECT INTEGRATION: Sign in with Firebase Auth using Custom Token
+        if (data.firebaseToken) {
+          try {
+            const { auth } = initializeFirebase();
+            await signInWithCustomToken(auth, data.firebaseToken);
+          } catch (authErr) {
+            console.error('Firebase Auth Error:', authErr);
+            // We still proceed as we have the custom JWT/store login
+          }
+        }
+
+        // In a real app we would store the JWT
+        if (data.token) localStorage.setItem('nivaastha_token', data.token);
+        login(mobileNumber);
+        router.push('/');
+      } else {
+        toast({ title: 'Verification Failed', description: data.error || 'Invalid OTP', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Login: Failed to verify OTP:', error);
+      toast({ title: 'Connection Error', description: 'Failed to verify OTP. Please try again.', variant: 'destructive' });
+    } finally {
       setIsLoading(false);
-    }, 400);
+    }
   };
   
   const handleBack = () => {

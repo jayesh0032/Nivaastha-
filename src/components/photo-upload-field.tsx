@@ -62,7 +62,8 @@ export function PhotoUploadField({ name, label, description, multiple = false, i
     if (filesArray.length > 0) {
       Promise.all(filesArray.map(fileToDataURI))
         .then(setNewFilePreviews)
-        .catch(() => {
+        .catch((error) => {
+            console.error('Error creating previews:', error);
             toast({
                 title: 'Error creating previews',
                 description: 'Could not read one or more image files.',

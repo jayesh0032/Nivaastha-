@@ -1,191 +1,101 @@
 {
   "entities": {
     "UserProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
+      "description": "Represents a user profile on the Nivaastha platform.",
       "type": "object",
-      "description": "Represents a user of the rental property application, including renters and property owners/agents. This entity stores core user information relevant to the app's functionality.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "mobileNumber": {
-          "type": "string",
-          "description": "The user's mobile number, used for OTP-based login."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user, for personalization."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address.",
-          "format": "email"
-        },
-        "role": {
-          "type": "string",
-          "description": "The role of the user within the application (e.g., 'renter' or 'ownerAgent').",
-          "items": {
-            "type": "string"
-          }
-        },
+        "id": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
         "savedPropertyIds": {
           "type": "array",
-          "description": "An array of IDs referencing properties that this user has saved or favorited. (Relationship: UserProfile N:N Property)",
-          "items": {
-            "type": "string"
-          }
+          "items": { "type": "string" }
         }
       },
-      "required": [
-        "id",
-        "mobileNumber",
-        "role"
-      ]
+      "required": ["id", "mobileNumber"]
     },
     "Property": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Property",
+      "description": "Represents a property listing.",
       "type": "object",
-      "description": "Represents a single rental property listing available in the application, including all details for display and search functionality.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Property entity."
-        },
-        "propertyType": {
-          "type": "string",
-          "description": "The type of the property (e.g., 'House', 'Villa', 'Flat').",
-          "items": {
-            "type": "string"
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "rent": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "isRented": { "type": "boolean" },
+        "address": {
+          "type": "object",
+          "properties": {
+            "street": { "type": "string" },
+            "colony": { "type": "string" },
+            "sector": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" },
+            "pin": { "type": "string" },
+            "country": { "type": "string" }
           }
         },
-        "photos": {
-          "type": "array",
-          "description": "An array of URLs for property images, including location, room, kitchen, and front views. At least one photo of each type is mandatory for listing.",
-          "items": {
-            "type": "string"
+        "owner": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "mobile": { "type": "string" }
           }
         },
-        "ownerContactNumber": {
-          "type": "string",
-          "description": "The mobile number of the property owner or agent for direct contact by interested renters."
-        },
-        "bhkType": {
-          "type": "string",
-          "description": "The BHK (Bedroom, Hall, Kitchen) configuration of the property (e.g., '1BHK', '2BHK', '3BHK+')."
-        },
-        "suitability": {
-          "type": "string",
-          "description": "Indicates whether the property is suitable for families, bachelors, or both.",
-          "items": {
-            "type": "string"
+        "images": {
+          "type": "object",
+          "properties": {
+            "frontView": { "$ref": "PropertyImage" },
+            "kitchen": { "$ref": "PropertyImage" },
+            "rooms": { "type": "array", "items": { "$ref": "PropertyImage" } },
+            "hall": { "type": "array", "items": { "$ref": "PropertyImage" } }
           }
         },
-        "monthlyRent": {
-          "type": "number",
-          "description": "The monthly rental amount for the property, in the local currency."
-        },
-        "city": {
-          "type": "string",
-          "description": "The city where the property is located, crucial for search and filtering."
-        },
-        "area": {
-          "type": "string",
-          "description": "The specific area or neighborhood within the city where the property is located, used for refined search."
-        },
-        "description": {
-          "type": "string",
-          "description": "A concise, appealing description of the property, potentially AI-generated, to attract potential renters."
-        },
-        "listedByUserId": {
-          "type": "string",
-          "description": "Reference to the unique identifier of the UserProfile who listed this property. (Relationship: UserProfile 1:N Property)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "The timestamp indicating when the property listing was first created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "The timestamp indicating when the property listing was last updated.",
-          "format": "date-time"
-        },
-        "latitude": {
-          "type": "number",
-          "description": "Geographic latitude coordinate of the property, for optional map view integration."
-        },
-        "longitude": {
-          "type": "number",
-          "description": "Geographic longitude coordinate of the property, for optional map view integration."
-        },
-        "favoritedByUsersIds": {
-          "type": "array",
-          "description": "An array of IDs referencing UserProfiles who have marked this property as a favorite. (Relationship: Property N:N UserProfile)",
-          "items": {
-            "type": "string"
-          }
-        }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "propertyType",
-        "photos",
-        "ownerContactNumber",
-        "bhkType",
-        "suitability",
-        "monthlyRent",
-        "city",
-        "area",
-        "description",
-        "listedByUserId",
-        "createdAt"
-      ]
+      "required": ["id", "title", "rent", "owner"]
+    },
+    "PropertyImage": {
+      "title": "PropertyImage",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "hint": { "type": "string" }
+      }
+    },
+    "OTP": {
+      "title": "OTP",
+      "description": "Stores temporary OTP data for verification.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string" },
+        "otpHash": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "attemptCount": { "type": "integer" }
+      },
+      "required": ["phoneNumber", "otpHash", "createdAt", "expiresAt", "attemptCount"]
     }
   },
-  "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
-  },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profiles. Access is restricted to the owner (request.auth.uid == userId). Includes denormalized 'savedPropertyIds' array for a user's favorited properties. The 'id' field within the document must match the {userId} wildcard.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, matching Firebase Authentication UID."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/properties/{propertyId}",
-        "definition": {
-          "entityName": "Property",
-          "schema": {
-            "$ref": "#/backend/entities/Property"
-          },
-          "description": "Stores publicly viewable rental property listings. Includes 'listedByUserId' for write authorization (request.auth.uid == resource.data.listedByUserId). The 'favoritedByUsersIds' field is present as per schema but is considered read-only for client-side writes, and its updates are expected to be managed by a trusted backend for data integrity with UserProfile.savedPropertyIds.",
-          "params": [
-            {
-              "name": "propertyId",
-              "description": "The unique identifier for a specific property listing."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore data structure is designed to be secure, scalable, and debuggable, adhering strictly to the core design principles. \n\n**Authorization Independence (CRITICAL):**\n\n1.  **User Profiles:** Each `UserProfile` document is stored at `/users/{userId}`. Authorization for this document is entirely self-contained: only the authenticated user whose `uid` matches the `{userId}` wildcard can read or modify their profile. The `UserProfile` document includes the `savedPropertyIds` array, which the user can directly manage to track their favorited properties. This ensures that a user's saved listings are private and securely controlled without needing to reference any other document.\n2.  **Properties:** `Property` documents are stored in a top-level collection at `/properties/{propertyId}`. This collection serves as the public listing space. Each `Property` document includes the `listedByUserId` field. This field is the sole determinant for write/update/delete authorization for that specific property, meaning only the user who listed the property can modify its details. This denormalization of ownership directly into the `Property` document eliminates any need for `get()` calls to a parent `User` document in security rules, ensuring atomic operations and clear, independent authorization.\n3.  **Favoriting Mechanism:** The `Property` entity's `favoritedByUsersIds` array presents a potential challenge for Authorization Independence if client-modifiable by any user. To maintain security and simplicity, this field is recommended to be treated as **read-only for client-side writes** via security rules. Updates to `favoritedByUsersIds` should be managed by a trusted backend service (e.g., a Cloud Function) that is triggered by changes to a user's `UserProfile.savedPropertyIds`. This ensures data integrity between the two denormalized lists and prevents complex, error-prone client-side array manipulation rules that would conflict with the `listedByUserId` ownership of the `Property` document itself. This approach preserves the `listedByUserId` as the clear, independent authority for the `Property` document.\n\n**QAPs (Rules are not Filters):**\n\n1.  **Public Property Listings:** The `/properties` collection is designed for efficient and secure `list` operations (searches and filters). All properties in this collection are publicly readable, allowing any user (authenticated or potentially anonymous, depending on the rule definition) to query and retrieve listings based on criteria like city, BHK type, rent range, etc. Security rules will simply allow `read: if request.auth.uid != null;` (or `true`) for this collection, enforcing that the client application is responsible for applying search filters. The rules do not attempt to filter the data based on complex authorization logic.\n2.  **User-Specific Data:** `UserProfile` data is inherently private. Direct `list` operations on `/users` are typically disallowed or heavily restricted. Users access their own profile by providing their `uid`. For a user's saved properties, the application fetches the `/users/{userId}` document and then uses the `savedPropertyIds` array to construct specific queries to the `/properties` collection (e.g., using `where(documentId(), 'in', userProfile.savedPropertyIds)` for displaying saved listings). This ensures QAPs by querying existing data rather than filtering on the rule level.\n\n**Structural Segregation & Access Modeling:**\n\n*   User profiles are stored in `/users/{userId}`, ensuring strict path-based ownership. \n*   Property listings are in `/properties/{propertyId}`, a global collection, because they require public read access and owner-specific write access. This clear segregation ensures that each collection has a homogeneous security posture.\n*   Roles (`UserProfile.role`) are stored directly in the `UserProfile` document (DBAC), enabling straightforward rule conditions like `resource.data.role == 'ownerAgent'`. No custom claims are needed.\n\nThis structure prioritizes simple, robust security rules, explicit authorization intent, and scalable queries, making the application easier to secure and debug."
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private user profiles."
+    },
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Public property listings."
+    },
+    "/otps/{phoneNumber}": {
+      "schema": "OTP",
+      "description": "Temporary OTP storage. Restricted logic should typically be server-side."
+    }
   }
 }

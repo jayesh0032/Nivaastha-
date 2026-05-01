@@ -1,84 +1,57 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // --- Global Denial ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
-    /**
-     * CORE PHILOSOPHY
-     * This ruleset enforces a dual-layered security model tailored for a rental property marketplace:
-     * 1. Strict Ownership: User profiles are private and accessible only by the account owner.
-     * 2. Public Listing / Private Editing: Property listings are publicly readable to facilitate searching, 
-     *    but modifications are strictly restricted to the user who created the listing.
-     *
-     * DATA STRUCTURE
-     * - /users/{userId}: Private user profiles containing contact info and personal saved properties.
-     * - /properties/{propertyId}: Publicly accessible property listings.
-     *
-     * KEY SECURITY DECISIONS
-     * - Denormalization for Authorization: Property documents contain a 'listedByUserId' field to allow 
-     *   immediate ownership verification without additional document lookups (get() calls).
-     * - Structural Segregation: User-specific data and public listing data are kept in separate top-level 
-     *   collections to maintain clear access boundaries.
-     * - Relational Integrity: Critical fields like 'listedByUserId' and 'id' are made immutable after 
-     *   creation to prevent ownership hijacking.
-     * - Managed Fields: The 'favoritedByUsersIds' array on Properties is treated as read-only for clients, 
-     *   intended to be managed by trusted backend logic for data consistency.
-     */
-
-    // --- Helper Functions ---
-
-    /** @description Checks if the request is from an authenticated user. */
+    // --- Helpers ---
     function isSignedIn() {
       return request.auth != null;
     }
-
-    /** @description Checks if the authenticated user's UID matches the provided userId. */
+    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** @description Validates ownership for operations on existing documents. */
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    /** @description Verifies that a field in the incoming data hasn't changed from the existing data. */
-    function isUnchanged(fieldName) {
-      return request.resource.data[fieldName] == resource.data[fieldName];
+    function incoming() {
+      return request.resource.data;
     }
 
-    // --- Collection Rules ---
+    function existing() {
+      return resource.data;
+    }
 
-    /**
-     * @description Rules for User Profiles. Enforces strict path-based ownership.
-     * @path /users/{userId}
-     * @allow (get, list, create, update, delete) if the user's UID matches the {userId} in the path.
-     * @deny Any request where request.auth.uid does not match the userId wildcard.
-     * @principle Restricts access to a user's own data tree and enforces path-to-data consistency.
-     */
+    // --- Users Collection ---
     match /users/{userId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && isUnchanged('id');
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && incoming().id == userId;
+      allow update: if isOwner(userId) && incoming().id == existing().id;
+      allow delete: if isOwner(userId);
     }
 
-    /**
-     * @description Rules for Property Listings. Public read access with owner-only writes.
-     * @path /properties/{propertyId}
-     * @allow (get, list) for all users.
-     * @allow (create) if the user is signed in and sets themselves as the listedByUserId.
-     * @allow (update, delete) if the user is the original creator.
-     * @deny Writes from non-owners or attempts to change the creator or managed favorite lists.
-     * @principle Uses denormalized ownership (listedByUserId) for performant write authorization.
-     */
+    // --- Properties Collection ---
     match /properties/{propertyId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.listedByUserId == request.auth.uid;
-      allow update: if isSignedIn() 
-                    && resource.data.listedByUserId == request.auth.uid 
-                    && isUnchanged('listedByUserId')
-                    && isUnchanged('favoritedByUsersIds');
-      allow delete: if isSignedIn() && resource.data.listedByUserId == request.auth.uid;
+      function isPropertyOwner() {
+        return isSignedIn() && (existing().owner.mobile == request.auth.token.phone_number || existing().owner.mobile == request.auth.token.email);
+      }
+      
+      allow read, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isPropertyOwner() && incoming().id == existing().id;
+      allow delete: if isPropertyOwner();
+    }
+
+    // --- OTPs Collection (Server-side ONLY) ---
+    // Since we use Firebase Admin SDK in API routes, we don't need any client-side access.
+    match /otps/{phoneNumber} {
+      allow read, write: if false;
     }
   }
 }

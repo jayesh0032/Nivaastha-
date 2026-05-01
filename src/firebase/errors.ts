@@ -83,9 +83,10 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
     if (currentUser) {
       authObject = buildAuthObject(currentUser);
     }
-  } catch {
+  } catch (err) {
     // This will catch errors if the Firebase app is not yet initialized.
     // In this case, we'll proceed without auth information.
+    console.error('Error building simulated auth object:', err);
   }
 
   return {
