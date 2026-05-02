@@ -16,8 +16,7 @@ export async function sendFast2SMS(to: string, message: string): Promise<boolean
     const response = await axios.post(
       'https://www.fast2sms.com/dev/bulkV2',
       {
-        route: 'v3',
-        sender_id: 'TXTIND', // Default general sender ID
+        route: 'q',
         message: message,
         language: 'english',
         flash: 0,
