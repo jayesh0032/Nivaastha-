@@ -31,10 +31,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const hashedIncomingOtp = hashOtp(otp);
+    const hashedIncomingOtp = hashOtp(String(otp).trim());
 
     if (hashedIncomingOtp !== otpRecord.otpHash) {
       // Failed attempt
+      console.error(`[Verify OTP] Mismatch! Received: '${otp}', Expected Hash: '${otpRecord.otpHash}', Got Hash: '${hashedIncomingOtp}'`);
       const attempts = incrementOtpAttempt(phone);
       return NextResponse.json(
         { error: `Invalid OTP. Attempts left: ${3 - attempts}` },

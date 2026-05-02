@@ -70,9 +70,9 @@ export async function POST(request: Request) {
     setCooldown(phone, RESEND_COOLDOWN_MS);
 
     // 7. Send OTP SMS via Fast2SMS
-    const smsSent = await sendFast2SMS(phone, otp);
+    const smsResult = await sendFast2SMS(phone, otp);
 
-    if (!smsSent) {
+    if (!smsResult.success) {
       return NextResponse.json(
         { error: 'Failed to send OTP via SMS. Provider error.' },
         { status: 500 }
@@ -82,7 +82,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true,
       message: 'OTP sent successfully',
-      cooldown: 60
+      cooldown: 60,
+      simulated: smsResult.simulated,
+      otp: smsResult.simulated ? otp : undefined 
     }, { status: 200 });
 
   } catch (error) {

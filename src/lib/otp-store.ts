@@ -14,9 +14,20 @@ interface RateLimitData {
   resetAt: number;
 }
 
-const otpStore = new Map<string, OTPData>();
-const rateLimitStore = new Map<string, RateLimitData>(); // key: IP or Phone
-const cooldownStore = new Map<string, number>(); // key: Phone, value: allowed next request timestamp
+declare global {
+  var _otpStore: Map<string, OTPData> | undefined;
+  var _rateLimitStore: Map<string, RateLimitData> | undefined;
+  var _cooldownStore: Map<string, number> | undefined;
+}
+
+const otpStore = global._otpStore || new Map<string, OTPData>();
+if (process.env.NODE_ENV !== 'production') global._otpStore = otpStore;
+
+const rateLimitStore = global._rateLimitStore || new Map<string, RateLimitData>();
+if (process.env.NODE_ENV !== 'production') global._rateLimitStore = rateLimitStore;
+
+const cooldownStore = global._cooldownStore || new Map<string, number>();
+if (process.env.NODE_ENV !== 'production') global._cooldownStore = cooldownStore;
 
 export function hashOtp(otp: string): string {
   return crypto.createHash('sha256').update(otp).digest('hex');

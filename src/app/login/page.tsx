@@ -153,8 +153,9 @@ function LoginForm({ onBack }: { onBack: () => void }) {
         if (data.simulated) {
           toast({ 
             title: 'OTP Generated (Simulator)', 
-            description: 'No SMS API Keys found. Check the server console (logs) for the 6-digit OTP!',
-            variant: 'default'
+            description: `Simulator is active! Your OTP is: ${data.otp}`,
+            variant: 'default',
+            duration: 10000,
           });
         } else {
           toast({ title: 'OTP Sent', description: `An OTP has been sent to ${mobileNumber}.` });
