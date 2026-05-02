@@ -85,7 +85,6 @@ export function Footer() {
              <h3 className="text-base font-semibold font-headline mt-6 mb-4 text-white">Contact</h3>
              <ul className="space-y-2 text-neutral-300 text-sm">
                 <li><a href="mailto:contact@nivaastha.com" className="hover:text-primary">contact@nivaastha.com</a></li>
-                <li><a href="tel:+919724377998" className="hover:text-primary">+91 97243 77998</a></li>
              </ul>
           </div>
         </div>
