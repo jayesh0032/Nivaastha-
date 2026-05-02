@@ -9,10 +9,18 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  serverExternalPackages: ['genkit', 'firebase-admin', '@opentelemetry/sdk-node', 'handlebars', '@genkit-ai/googleai', '@genkit-ai/core'],
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+  },
+  webpack(config) {
+    config.ignoreWarnings = [
+      { module: /node_modules\/@opentelemetry/ },
+      { module: /node_modules\/handlebars/ }
+    ];
+    return config;
   },
   images: {
     remotePatterns: [
