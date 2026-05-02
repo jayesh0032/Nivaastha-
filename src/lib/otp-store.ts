@@ -1,27 +1,16 @@
 import crypto from 'node:crypto';
+import { getFirestore } from './firebase-admin';
 
-// In-Memory Store
-// In a real production system with multiple instances, use Redis instead.
-
-interface OTPData {
-  otpHash: string;
-  expiresAt: number;
-  attempts: number;
-}
-
+// Keep rate limits and cooldown in memory (per instance is fine for basic protection)
 interface RateLimitData {
   count: number;
   resetAt: number;
 }
 
 declare global {
-  var _otpStore: Map<string, OTPData> | undefined;
   var _rateLimitStore: Map<string, RateLimitData> | undefined;
   var _cooldownStore: Map<string, number> | undefined;
 }
-
-const otpStore = global._otpStore || new Map<string, OTPData>();
-if (process.env.NODE_ENV !== 'production') global._otpStore = otpStore;
 
 const rateLimitStore = global._rateLimitStore || new Map<string, RateLimitData>();
 if (process.env.NODE_ENV !== 'production') global._rateLimitStore = rateLimitStore;
@@ -33,38 +22,56 @@ export function hashOtp(otp: string): string {
   return crypto.createHash('sha256').update(otp).digest('hex');
 }
 
-export function saveOtp(phoneNumber: string, otpHash: string, ttlMs: number) {
-  otpStore.set(phoneNumber, {
+export async function saveOtp(phoneNumber: string, otpHash: string, ttlMs: number) {
+  const db = getFirestore();
+  await db.collection('otps').doc(phoneNumber).set({
+    phoneNumber,
     otpHash,
+    createdAt: Date.now(),
     expiresAt: Date.now() + ttlMs,
-    attempts: 0,
+    attemptCount: 0
   });
 }
 
-export function getOtpData(phoneNumber: string): OTPData | undefined {
-  const data = otpStore.get(phoneNumber);
+export async function getOtpData(phoneNumber: string): Promise<{ otpHash: string; expiresAt: number; attempts: number; } | undefined> {
+  const db = getFirestore();
+  const docRef = db.collection('otps').doc(phoneNumber);
+  const doc = await docRef.get();
+  
+  if (!doc.exists) return undefined;
+  
+  const data = doc.data();
   if (!data) return undefined;
   
   if (Date.now() > data.expiresAt) {
-    otpStore.delete(phoneNumber);
+    await docRef.delete();
     return undefined;
   }
   
-  return data;
+  return {
+    otpHash: data.otpHash,
+    expiresAt: data.expiresAt,
+    attempts: data.attemptCount || 0
+  };
 }
 
-export function incrementOtpAttempt(phoneNumber: string): number {
-  const data = otpStore.get(phoneNumber);
-  if (data) {
-    data.attempts += 1;
-    otpStore.set(phoneNumber, data);
-    return data.attempts;
+export async function incrementOtpAttempt(phoneNumber: string): Promise<number> {
+  const db = getFirestore();
+  const docRef = db.collection('otps').doc(phoneNumber);
+  const doc = await docRef.get();
+  
+  if (doc.exists) {
+    const data = doc.data()!;
+    const newAttempts = (data.attemptCount || 0) + 1;
+    await docRef.update({ attemptCount: newAttempts });
+    return newAttempts;
   }
   return 0;
 }
 
-export function clearOtp(phoneNumber: string) {
-  otpStore.delete(phoneNumber);
+export async function clearOtp(phoneNumber: string) {
+  const db = getFirestore();
+  await db.collection('otps').doc(phoneNumber).delete().catch(() => {});
 }
 
 // 60-second cooldown

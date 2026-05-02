@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const otpRecord = getOtpData(phone);
+    const otpRecord = await getOtpData(phone);
 
     if (!otpRecord) {
       return NextResponse.json(
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     if (otpRecord.attempts >= 3) {
-      clearOtp(phone);
+      await clearOtp(phone);
       return NextResponse.json(
         { error: 'Too many blocked attempts. Please request a new OTP.' },
         { status: 403 }
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     if (hashedIncomingOtp !== otpRecord.otpHash) {
       // Failed attempt
       console.error(`[Verify OTP] Mismatch! Received: '${otp}', Expected Hash: '${otpRecord.otpHash}', Got Hash: '${hashedIncomingOtp}'`);
-      const attempts = incrementOtpAttempt(phone);
+      const attempts = await incrementOtpAttempt(phone);
       return NextResponse.json(
         { error: `Invalid OTP. Attempts left: ${3 - attempts}` },
         { status: 401 }
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Success
-    clearOtp(phone); // remove OTP from store
+    await clearOtp(phone); // remove OTP from store
     
     // Generate JWT
     let token;

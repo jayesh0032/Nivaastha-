@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     
     // 5. Hash & Store OTP (Do NOT store plain text)
     const hashedOtp = hashOtp(otp);
-    saveOtp(phone, hashedOtp, OTP_EXPIRY_MS);
+    await saveOtp(phone, hashedOtp, OTP_EXPIRY_MS);
     
     // 6. Set Resend Cooldown
     setCooldown(phone, RESEND_COOLDOWN_MS);
