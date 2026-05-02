@@ -1,6 +1,6 @@
 {
   "name": "Nivaastha",
   "description": "App imported from Firebase Studio",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": []
 }

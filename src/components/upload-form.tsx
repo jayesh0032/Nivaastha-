@@ -382,7 +382,8 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
         },
         (error) => {
             console.error('Geolocation Error:', error);
-            toast({ title: 'Geolocation Error', description: error.message, variant: 'destructive' });
+            const errorMessage = error.message && error.message.trim() !== '' ? error.message : "Failed to retrieve location. Please make sure location access is allowed.";
+            toast({ title: 'Geolocation Error', description: errorMessage, variant: 'destructive' });
             setIsLocating(false);
         }
     );
