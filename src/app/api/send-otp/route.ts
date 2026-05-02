@@ -70,8 +70,7 @@ export async function POST(request: Request) {
     setCooldown(phone, RESEND_COOLDOWN_MS);
 
     // 7. Send OTP SMS via Fast2SMS
-    const message = `Your Verification OTP is: ${otp}. It will expire in 5 minutes.`;
-    const smsSent = await sendFast2SMS(phone, message);
+    const smsSent = await sendFast2SMS(phone, otp);
 
     if (!smsSent) {
       return NextResponse.json(
