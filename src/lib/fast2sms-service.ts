@@ -15,10 +15,8 @@ export async function sendFast2SMS(to: string, otp: string): Promise<{ success: 
     const response = await axios.post(
       'https://www.fast2sms.com/dev/bulkV2',
       {
-        route: 'q',
-        message: `Your Verification OTP is ${otp}. Valid for 5 minutes.`,
-        language: 'english',
-        flash: 0,
+        route: 'otp',
+        variables_values: String(otp),
         numbers: String(to),
       },
       {

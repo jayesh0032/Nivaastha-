@@ -1,16 +1,25 @@
 import crypto from 'node:crypto';
-import { getFirestore } from './firebase-admin';
 
-// Keep rate limits and cooldown in memory (per instance is fine for basic protection)
+// In-Memory Store
+interface OTPData {
+  otpHash: string;
+  expiresAt: number;
+  attempts: number;
+}
+
 interface RateLimitData {
   count: number;
   resetAt: number;
 }
 
 declare global {
+  var _otpStore: Map<string, OTPData> | undefined;
   var _rateLimitStore: Map<string, RateLimitData> | undefined;
   var _cooldownStore: Map<string, number> | undefined;
 }
+
+const otpStore = global._otpStore || new Map<string, OTPData>();
+if (process.env.NODE_ENV !== 'production') global._otpStore = otpStore;
 
 const rateLimitStore = global._rateLimitStore || new Map<string, RateLimitData>();
 if (process.env.NODE_ENV !== 'production') global._rateLimitStore = rateLimitStore;
@@ -23,55 +32,41 @@ export function hashOtp(otp: string): string {
 }
 
 export async function saveOtp(phoneNumber: string, otpHash: string, ttlMs: number) {
-  const db = getFirestore();
-  await db.collection('otps').doc(phoneNumber).set({
-    phoneNumber,
+  otpStore.set(phoneNumber, {
     otpHash,
-    createdAt: Date.now(),
     expiresAt: Date.now() + ttlMs,
-    attemptCount: 0
+    attempts: 0
   });
 }
 
 export async function getOtpData(phoneNumber: string): Promise<{ otpHash: string; expiresAt: number; attempts: number; } | undefined> {
-  const db = getFirestore();
-  const docRef = db.collection('otps').doc(phoneNumber);
-  const doc = await docRef.get();
-  
-  if (!doc.exists) return undefined;
-  
-  const data = doc.data();
+  const data = otpStore.get(phoneNumber);
   if (!data) return undefined;
   
   if (Date.now() > data.expiresAt) {
-    await docRef.delete();
+    otpStore.delete(phoneNumber);
     return undefined;
   }
   
   return {
     otpHash: data.otpHash,
     expiresAt: data.expiresAt,
-    attempts: data.attemptCount || 0
+    attempts: data.attempts
   };
 }
 
 export async function incrementOtpAttempt(phoneNumber: string): Promise<number> {
-  const db = getFirestore();
-  const docRef = db.collection('otps').doc(phoneNumber);
-  const doc = await docRef.get();
-  
-  if (doc.exists) {
-    const data = doc.data()!;
-    const newAttempts = (data.attemptCount || 0) + 1;
-    await docRef.update({ attemptCount: newAttempts });
-    return newAttempts;
+  const data = otpStore.get(phoneNumber);
+  if (data) {
+    data.attempts += 1;
+    otpStore.set(phoneNumber, data);
+    return data.attempts;
   }
   return 0;
 }
 
 export async function clearOtp(phoneNumber: string) {
-  const db = getFirestore();
-  await db.collection('otps').doc(phoneNumber).delete().catch(() => {});
+  otpStore.delete(phoneNumber);
 }
 
 // 60-second cooldown
