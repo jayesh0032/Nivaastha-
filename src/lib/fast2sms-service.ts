@@ -12,50 +12,41 @@ export async function sendFast2SMS(to: string, otp: string): Promise<{ success: 
   }
 
   try {
-    const response = await axios.post(
-      'https://www.fast2sms.com/dev/bulkV2',
-      {
+    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'authorization': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         route: 'otp',
         variables_values: String(otp),
         numbers: String(to),
-      },
-      {
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+      })
+    });
 
-    if (response.data && response.data.return === true) {
+    const data = await response.json().catch(() => ({}));
+
+    if (data.return === true) {
       console.log(`[Fast2SMS] SMS sent successfully to ${to}.`);
       return { success: true, simulated: false };
     } else {
-      console.error(`[Fast2SMS] Failed to send SMS to ${to}:`, JSON.stringify(response.data));
+      console.error(`[Fast2SMS] Provider returned error for ${to}:`, data);
       
-      const errorDetails = response.data || {};
-      if (errorDetails.status_code === 999 || errorDetails.status_code === 996) {
-        console.log('\n--- 📱 Fast2SMS Simulator (Fallback due to wallet/verification) ---');
+      // Fallback for insufficient wallet balance or non-approved templates/accounts
+      if (data.status_code === 999 || data.status_code === 996 || data.status_code === 411 || data.status_code === 412 || data.message?.toLowerCase().includes('wallet')) {
+        console.log('\n--- 📱 Fast2SMS Simulator (Fallback) ---');
+        console.log(`Reason: ${data.message}`);
         console.log(`To: ${to}`);
         console.log(`OTP: ${otp}`);
-        console.log('--------------------------------------------------------------\n');
+        console.log('----------------------------------------\n');
         return { success: true, simulated: true }; 
       }
       
-      return { success: false, simulated: false, error: 'Provider returned false' };
+      return { success: false, simulated: false, error: data.message || 'Provider returned false' };
     }
   } catch (error: any) {
-    const errorDetails = error.response?.data || {};
-    console.error(`[Fast2SMS] Error sending SMS to ${to}:`, JSON.stringify(errorDetails) || error.message);
-    
-    if (errorDetails.status_code === 999 || errorDetails.status_code === 996) {
-      console.log('\n--- 📱 Fast2SMS Simulator (Fallback due to wallet/verification) ---');
-      console.log(`To: ${to}`);
-      console.log(`OTP: ${otp}`);
-      console.log('--------------------------------------------------------------\n');
-      return { success: true, simulated: true };
-    }
-
+    console.error(`[Fast2SMS] Exception sending SMS to ${to}:`, error.message);
     return { success: false, simulated: false, error: error.message };
   }
 }

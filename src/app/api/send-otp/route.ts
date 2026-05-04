@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
     if (!smsResult.success) {
       return NextResponse.json(
-        { error: 'Failed to send OTP via SMS. Provider error.' },
+        { error: `Failed to send OTP via SMS. Provider error: ${smsResult.error || 'Unknown'}` },
         { status: 500 }
       );
     }
@@ -87,10 +87,10 @@ export async function POST(request: Request) {
       otp: smsResult.simulated ? otp : undefined 
     }, { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in /api/send-otp:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: error?.message || 'Internal Server Error', stack: error?.stack },
       { status: 500 }
     );
   }

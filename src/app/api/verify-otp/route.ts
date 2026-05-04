@@ -61,10 +61,10 @@ export async function POST(request: Request) {
       token
     }, { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error verifying OTP:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: error?.message || 'Internal Server Error', stack: error?.stack },
       { status: 500 }
     );
   }
