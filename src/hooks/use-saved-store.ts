@@ -1,27 +1,33 @@
 'use client';
 
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 type SavedStore = {
-  savedIds: Set<string>;
+  savedList: string[];
   toggleSaved: (id: string) => void;
   isSaved: (id: string) => boolean;
 };
 
-export const useSavedStore = create<SavedStore>((set, get) => ({
-  savedIds: new Set(),
-  toggleSaved: (id: string) => {
-    set((state) => {
-      const newSavedIds = new Set(state.savedIds);
-      if (newSavedIds.has(id)) {
-        newSavedIds.delete(id);
-      } else {
-        newSavedIds.add(id);
-      }
-      return { savedIds: newSavedIds };
-    });
-  },
-  isSaved: (id: string) => {
-    return get().savedIds.has(id);
-  },
-}));
+export const useSavedStore = create<SavedStore>()(
+  persist(
+    (set, get) => ({
+      savedList: [],
+      toggleSaved: (id: string) => {
+        set((state) => {
+          const exists = state.savedList.includes(id);
+          return {
+            savedList: exists
+              ? state.savedList.filter((item) => item !== id)
+              : [...state.savedList, id],
+          };
+        });
+      },
+      isSaved: (id: string) => get().savedList.includes(id),
+    }),
+    {
+      name: 'nivaastha-saved-properties',
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);

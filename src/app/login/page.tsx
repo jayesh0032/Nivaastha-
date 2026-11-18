@@ -1,172 +1,87 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail, KeyRound, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '@/hooks/use-auth-store';
-import { useUserStore } from '@/hooks/use-user-store';
 import { Logo } from '@/components/logo';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { indianStates } from '@/lib/location-data';
-import { initializeFirebase } from '@/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 
-// --- Signup Form Schema ---
-const signupSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  mobileNumber: z.string().regex(/^\d{10}$/, { message: 'Please enter a valid 10-digit mobile number.' }),
-  pinCode: z.string().min(6, { message: 'PIN code must be at least 6 characters.' }),
-  city: z.string().min(2, { message: 'City is required.' }),
-  state: z.string().min(2, { message: 'State is required.' }),
-  country: z.string().min(2, { message: 'Country is required.' }),
-});
-type SignupFormValues = z.infer<typeof signupSchema>;
-
-// --- Signup Component ---
-function SignupForm({ onSignupSuccess, onBack }: { onSignupSuccess: () => void; onBack: () => void }) {
-  const [isLoading, setIsLoading] = React.useState(false);
-  const { toast } = useToast();
-  const { addUser, findUserByMobile } = useUserStore();
-
-  const form = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { name: '', mobileNumber: '', pinCode: '', city: '', state: '', country: 'India' },
-  });
-
-  const onSubmit = (data: SignupFormValues) => {
-    setIsLoading(true);
-    if (findUserByMobile(data.mobileNumber)) {
-      toast({ title: 'User Exists', description: 'A user with this mobile number already exists. Please log in.', variant: 'destructive' });
-      setIsLoading(false);
-      return;
-    }
-
-    setTimeout(() => {
-      addUser(data);
-      toast({ title: 'Signup Successful!', description: 'You can now log in with your mobile number.' });
-      setIsLoading(false);
-      onSignupSuccess();
-    }, 400);
-  };
-
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField control={form.control} name="name" render={({ field }) => ( <FormItem> <FormLabel>Full Name</FormLabel> <FormControl><Input placeholder="e.g., Jane Doe" {...field} /></FormControl> <FormMessage /> </FormItem> )} />
-        <FormField control={form.control} name="mobileNumber" render={({ field }) => ( <FormItem> <FormLabel>Mobile Number</FormLabel> <FormControl><Input type="tel" placeholder="e.g., 9876543210" {...field} /></FormControl> <FormMessage /> </FormItem> )} />
-        <FormField control={form.control} name="pinCode" render={({ field }) => ( <FormItem> <FormLabel>Pin Code</FormLabel> <FormControl><Input placeholder="e.g., 400050" {...field} /></FormControl> <FormMessage /> </FormItem> )} />
-        <FormField control={form.control} name="city" render={({ field }) => ( <FormItem> <FormLabel>City</FormLabel> <FormControl><Input placeholder="e.g., Mumbai" {...field} /></FormControl> <FormMessage /> </FormItem> )} />
-        <FormField
-          control={form.control}
-          name="state"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>State</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a state" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {indianStates.map((stateName) => (
-                    <SelectItem key={stateName} value={stateName}>
-                      {stateName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="country"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Country</FormLabel>
-              <FormControl>
-                <Input {...field} disabled />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <div className="flex flex-col gap-2 pt-2">
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Account
-          </Button>
-          <Button variant="link" type="button" onClick={onBack}>
-            Already have an account? Login
-          </Button>
-        </div>
-      </form>
-    </Form>
-  );
-}
-
-
-// --- Login Component ---
-function LoginForm({ onBack }: { onBack: () => void }) {
-  const [step, setStep] = React.useState(1);
-  const [mobileNumber, setMobileNumber] = React.useState('');
+function LoginFormContent() {
+  const [step, setStep] = React.useState<'email' | 'otp'>('email');
+  const [email, setEmail] = React.useState('');
   const [otp, setOtp] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/';
+
   const { toast } = useToast();
-  const { login } = useAuthStore();
-  const { findUserByMobile } = useUserStore();
+  const { isAuthenticated, initialized, setSessionState } = useAuthStore();
+
+  React.useEffect(() => {
+    if (initialized && isAuthenticated) {
+      router.replace(redirectTo);
+    }
+  }, [initialized, isAuthenticated, redirectTo, router]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobileNumber.length !== 10) {
-      toast({ title: 'Invalid Mobile Number', description: 'Please enter a valid 10-digit mobile number.', variant: 'destructive' });
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address.',
+        variant: 'destructive',
+      });
       return;
     }
 
-    if (!findUserByMobile(mobileNumber)) {
-        toast({ title: 'User Not Found', description: 'No account exists with this mobile number. Please sign up.', variant: 'destructive' });
-        return;
+    if (!isSupabaseConfigured()) {
+      toast({
+        title: 'Supabase Not Configured',
+        description: 'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be configured.',
+        variant: 'destructive',
+      });
+      return;
     }
-    
+
     setIsLoading(true);
     try {
-      const response = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobileNumber }),
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: trimmedEmail,
+        options: {
+          shouldCreateUser: true,
+        },
       });
-      const data = await response.json();
-      if (response.ok) {
-        if (data.simulated) {
-          toast({ 
-            title: 'OTP Generated (Simulator)', 
-            description: `Simulator is active! Your OTP is: ${data.otp}`,
-            variant: 'default',
-            duration: 10000,
-          });
-        } else {
-          toast({ title: 'OTP Sent', description: `An OTP has been sent to ${mobileNumber}.` });
-        }
-        setStep(2);
-      } else {
-        toast({ title: 'Error', description: data.error || 'Failed to send OTP', variant: 'destructive' });
+
+      if (error) {
+        toast({
+          title: 'Failed to Send Code',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
       }
-    } catch (error) {
-      console.error('Login: Failed to send OTP:', error);
-      toast({ title: 'Connection Error', description: 'Failed to connect to server. Please try again.', variant: 'destructive' });
+
+      toast({
+        title: 'Verification Code Sent',
+        description: `We sent a 6-digit login code to ${trimmedEmail}.`,
+      });
+      setStep('otp');
+    } catch (err: any) {
+      toast({
+        title: 'Connection Error',
+        description: err?.message || 'Unable to send OTP. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -174,131 +89,78 @@ function LoginForm({ onBack }: { onBack: () => void }) {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6) {
-      toast({ title: 'Invalid OTP', description: 'Please enter the 6-digit OTP.', variant: 'destructive' });
+    const cleanOtp = otp.trim();
+    if (cleanOtp.length !== 6) {
+      toast({
+        title: 'Invalid Code',
+        description: 'Please enter the 6-digit code sent to your email.',
+        variant: 'destructive',
+      });
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobileNumber, otp }),
+      const supabase = getSupabase();
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: cleanOtp,
+        type: 'email',
       });
-      const data = await response.json();
-      if (response.ok) {
-        toast({ title: 'Login Successful', description: 'Welcome back to Nivaastha!' });
-        
-        // PERFECT INTEGRATION: Sign in with Firebase Auth using Custom Token
-        if (data.firebaseToken) {
-          try {
-            const { auth } = initializeFirebase();
-            await signInWithCustomToken(auth, data.firebaseToken);
-          } catch (authErr) {
-            console.error('Firebase Auth Error:', authErr);
-            // We still proceed as we have the custom JWT/store login
-          }
-        }
 
-        // In a real app we would store the JWT
-        if (data.token) localStorage.setItem('nivaastha_token', data.token);
-        login(mobileNumber);
-        router.push('/');
-      } else {
-        toast({ title: 'Verification Failed', description: data.error || 'Invalid OTP', variant: 'destructive' });
+      if (error) {
+        toast({
+          title: 'Verification Failed',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
       }
-    } catch (error) {
-      console.error('Login: Failed to verify OTP:', error);
-      toast({ title: 'Connection Error', description: 'Failed to verify OTP. Please try again.', variant: 'destructive' });
+
+      if (data.session) {
+        setSessionState(data.session, null);
+      }
+
+      toast({
+        title: 'Login Successful',
+        description: 'Welcome to Nivaastha!',
+      });
+      router.replace(redirectTo);
+    } catch (err: any) {
+      toast({
+        title: 'Verification Error',
+        description: err?.message || 'Could not verify code. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const handleBack = () => {
-    if (step === 2) {
-      setStep(1);
-    } else {
-      onBack();
-    }
-  }
 
-  return (
-    <>
-      {step === 1 ? (
-        <form onSubmit={handleSendOtp} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="mobile">Mobile Number</Label>
-            <Input
-              id="mobile"
-              type="tel"
-              placeholder="e.g., 9876543210"
-              value={mobileNumber}
-              onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2 pt-2">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Send OTP
-            </Button>
-             <Button variant="link" type="button" onClick={handleBack}>
-                Go Back
-             </Button>
-          </div>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="otp">One-Time Password (OTP)</Label>
-            <Input
-              id="otp"
-              type="text"
-              placeholder="Enter 6-digit OTP"
-              maxLength={6}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-              required
-            />
-          </div>
-           <div className="flex flex-col gap-2 pt-2">
-             <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Verify & Login
-              </Button>
-              <Button variant="link" type="button" onClick={handleBack}>
-                Go Back
-              </Button>
-           </div>
-        </form>
-      )}
-    </>
-  );
-}
-
-// --- Main Page Component ---
-export default function LoginPage() {
-  const [mode, setMode] = React.useState<'initial' | 'login' | 'signup'>('initial');
-
-  const getTitle = () => {
-    switch(mode) {
-      case 'login': return 'Login to Your Account';
-      case 'signup': return 'Create Your Account';
-      case 'initial':
-      default:
-        return 'Welcome to Nivaastha';
-    }
-  };
-
-  const getDescription = () => {
-     switch(mode) {
-      case 'login': return 'Enter your mobile number to receive an OTP.';
-      case 'signup': return 'Join us and find your next home with ease.';
-      case 'initial':
-      default:
-        return 'The best place to find your next rental. Log in or sign up to continue.';
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    try {
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+      if (error) {
+        toast({
+          title: 'Resend Failed',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'New Code Sent',
+          description: `A fresh 6-digit code has been sent to ${email.trim()}.`,
+        });
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -306,21 +168,111 @@ export default function LoginPage() {
     <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-            <Logo className="mx-auto h-14 w-14 text-primary" />
-            <CardTitle className="text-3xl font-headline pt-4">{getTitle()}</CardTitle>
-            <CardDescription>{getDescription()}</CardDescription>
+          <Logo className="mx-auto h-14 w-14 text-primary" />
+          <CardTitle className="text-3xl font-headline pt-4">
+            {step === 'email' ? 'Sign In to Nivaastha' : 'Enter Verification Code'}
+          </CardTitle>
+          <CardDescription>
+            {step === 'email'
+              ? 'Enter your email address to receive a 6-digit one-time code.'
+              : `Enter the 6-digit code sent to ${email}`}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {mode === 'initial' && (
-            <div className="flex flex-col gap-4 pt-4">
-              <Button size="lg" className="w-full" onClick={() => setMode('login')}>Login with Mobile</Button>
-              <Button size="lg" className="w-full" variant="secondary" onClick={() => setMode('signup')}>New User? Sign Up</Button>
-            </div>
+          {step === 'email' ? (
+            <form onSubmit={handleSendOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Send 6-Digit Code
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">6-Digit Code</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="pl-10 tracking-widest text-center text-lg font-semibold"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Verify &amp; Login
+                </Button>
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    variant="link"
+                    type="button"
+                    size="sm"
+                    className="px-0"
+                    onClick={() => {
+                      setOtp('');
+                      setStep('email');
+                    }}
+                    disabled={isLoading}
+                  >
+                    <ArrowLeft className="mr-1 h-4 w-4" />
+                    Change email
+                  </Button>
+                  <Button
+                    variant="link"
+                    type="button"
+                    size="sm"
+                    className="px-0"
+                    onClick={handleResendOtp}
+                    disabled={isLoading}
+                  >
+                    Resend code
+                  </Button>
+                </div>
+              </div>
+            </form>
           )}
-          {mode === 'login' && <LoginForm onBack={() => setMode('initial')} />}
-          {mode === 'signup' && <SignupForm onSignupSuccess={() => setMode('login')} onBack={() => setMode('initial')} />}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </React.Suspense>
   );
 }

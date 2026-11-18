@@ -1,14 +1,24 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  env: {
+    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ?? '',
+    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY ?? '',
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
-  serverExternalPackages: ['genkit', 'firebase-admin', '@opentelemetry/sdk-node', 'handlebars', '@genkit-ai/googleai', '@genkit-ai/core'],
+  serverExternalPackages: [
+    'genkit',
+    'firebase-admin',
+    '@opentelemetry/sdk-node',
+    'handlebars',
+    '@genkit-ai/googleai',
+    '@genkit-ai/core',
+  ],
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
@@ -17,12 +27,24 @@ const nextConfig: NextConfig = {
   webpack(config) {
     config.ignoreWarnings = [
       { module: /node_modules\/@opentelemetry/ },
-      { module: /node_modules\/handlebars/ }
+      { module: /node_modules\/handlebars/ },
     ];
     return config;
   },
   images: {
     remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.supabase.in',
+        port: '',
+        pathname: '/**',
+      },
       {
         protocol: 'https',
         hostname: 'placehold.co',

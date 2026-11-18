@@ -23,8 +23,8 @@ export default function PrivacyPage() {
             We collect several different types of information for various purposes to provide and improve our Service to you. This includes:
           </p>
           <ul className="list-disc pl-6 space-y-2">
-            <li><strong>Personal Data:</strong> While using our Service, we may ask you to provide us with certain personally identifiable information that can be used to contact or identify you ("Personal Data"). This may include, but is not limited to, your name, mobile number, and location.</li>
-            <li><strong>Usage Data:</strong> We may also collect information on how the Service is accessed and used. This may include information such as your computer's IP address, browser type, browser version, the pages of our Service that you visit, the time and date of your visit, the time spent on those pages, and other diagnostic data.</li>
+            <li><strong>Personal Data:</strong> While using our Service, we may ask you to provide us with certain personally identifiable information that can be used to contact or identify you (&ldquo;Personal Data&rdquo;). This may include, but is not limited to, your name, mobile number, and location.</li>
+            <li><strong>Usage Data:</strong> We may also collect information on how the Service is accessed and used. This may include information such as your computer&apos;s IP address, browser type, browser version, the pages of our Service that you visit, the time and date of your visit, the time spent on those pages, and other diagnostic data.</li>
             <li><strong>Property Data:</strong> Information and photos you provide for property listings, which are made public on our platform to facilitate rentals.</li>
           </ul>
 

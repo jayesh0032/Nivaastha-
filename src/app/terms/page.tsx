@@ -15,7 +15,7 @@ export default function TermsPage() {
         </CardHeader>
         <CardContent className="text-foreground/90 leading-relaxed space-y-6 px-8 pb-8">
           <p>
-            Please read these Terms of Service ("Terms") carefully before using the Nivaastha website (the "Service") operated by us. Your access to and use of the Service is conditioned on your acceptance of and compliance with these Terms. These Terms apply to all visitors, users, and others who access or use the Service. By accessing or using the Service you agree to be bound by these Terms. If you disagree with any part of the terms then you may not access the Service.
+            Please read these Terms of Service (&ldquo;Terms&rdquo;) carefully before using the Nivaastha website (the &ldquo;Service&rdquo;) operated by us. Your access to and use of the Service is conditioned on your acceptance of and compliance with these Terms. These Terms apply to all visitors, users, and others who access or use the Service. By accessing or using the Service you agree to be bound by these Terms. If you disagree with any part of the terms then you may not access the Service.
           </p>
 
           <h3 className="font-headline text-2xl pt-4 border-b pb-2">1. Accounts</h3>
@@ -40,7 +40,7 @@ export default function TermsPage() {
 
           <h3 className="font-headline text-2xl pt-4 border-b pb-2">5. Changes</h3>
           <p>
-            We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material we will try to provide at least 30 days' notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion.
+            We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material we will try to provide at least 30 days&apos; notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion.
           </p>
 
           <h3 className="font-headline text-2xl pt-4 border-b pb-2">Contact Us</h3>

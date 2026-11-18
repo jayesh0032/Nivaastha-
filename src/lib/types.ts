@@ -1,6 +1,17 @@
+export type ListingType = 'sale' | 'rent';
+
+export type PropertyStatus = 'pending' | 'approved' | 'rejected' | string;
+
+export type PropertyImageRecord = {
+  id?: string;
+  property_id?: string;
+  image_url?: string;
+  url?: string;
+  created_at?: string;
+};
 
 export type PropertyImage = {
-  url?: string;
+  url: string;
   hint: string;
 };
 
@@ -12,31 +23,39 @@ export type Address = {
   state: string;
   pin: string;
   country: string;
-}
+};
 
 export type Property = {
   id: string;
+  owner_id: string;
   title: string;
-  type: 'House' | 'Villa' | 'Flat' | 'Shop' | 'Showroom' | 'PG for boys' | 'PG for girls' | 'PG';
-  address: Address;
-  floorNumber?: string;
-  images: {
-    hall: PropertyImage[];
-    rooms: PropertyImage[];
-    kitchen: PropertyImage;
-    frontView: PropertyImage;
-  };
-  owner: {
-    name: string;
-    mobile: string;
-  };
+  listing_type: ListingType;
+  property_type: string;
+  price: number;
   bhk: string;
-  suitability: 'Family' | 'Bachelor' | 'Commercial';
-  rent: number;
-  salePrice?: number;
-  condition?: 'New' | 'Resale';
+  area_sqft: number | null;
+  city: string;
+  locality: string;
+  address: string;
   description: string;
-  lat?: number;
-  lng?: number;
-  isRented?: boolean;
+  contact_phone: string;
+  status: PropertyStatus;
+  created_at: string;
+  images: string[];
+};
+
+export type UserProfile = {
+  id: string;
+  email?: string | null;
+  full_name?: string | null;
+  name?: string | null;
+  phone?: string | null;
+};
+
+export type PropertyFilterValues = {
+  city: string;
+  listingType: 'all' | 'rent' | 'sale';
+  bhk: string;
+  minPrice?: number;
+  maxPrice?: number;
 };
