@@ -15,11 +15,13 @@ import {
   Menu,
   ClipboardList,
   Building,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/hooks/use-auth-store';
+import { isAdminEmail } from '@/lib/properties-service';
 import * as React from 'react';
 import { Logo } from '@/components/logo';
 import {
@@ -74,6 +76,7 @@ export function Header() {
     user?.email?.split('@')[0] ||
     'Account';
   const displayEmail = user?.email || '';
+  const showAdminLink = initialized && isAuthenticated && isAdminEmail(user?.email);
 
   const handleLogout = async () => {
     await signOut();
@@ -107,6 +110,22 @@ export function Header() {
                 </Link>
               </Button>
             ))}
+
+            {showAdminLink && (
+              <Button
+                variant="ghost"
+                asChild
+                className={cn(
+                  'font-semibold',
+                  pathname === '/admin' && 'bg-primary/10 text-primary'
+                )}
+              >
+                <Link href="/admin" className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  Admin
+                </Link>
+              </Button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -250,6 +269,22 @@ export function Header() {
                         </Link>
                       </SheetClose>
                     ))}
+                    {showAdminLink && (
+                      <SheetClose asChild>
+                        <Link href="/admin">
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              'font-semibold w-full justify-start text-base py-6',
+                              pathname === '/admin' && 'bg-primary/10 text-primary'
+                            )}
+                          >
+                            <ShieldCheck className="h-5 w-5 mr-3" />
+                            Admin
+                          </Button>
+                        </Link>
+                      </SheetClose>
+                    )}
                     <Separator className="my-4" />
                     <Accordion type="single" collapsible className="w-full">
                       <AccordionItem value="more-info" className="border-b-0">

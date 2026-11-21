@@ -4,6 +4,12 @@ import type { ListingType, Property, PropertyFilterValues } from './types';
 
 const STORAGE_BUCKET = 'property-photos';
 
+export const ADMIN_EMAIL = 'jayesh743@gmail.com';
+
+export function isAdminEmail(email?: string | null): boolean {
+  return Boolean(email && email.trim().toLowerCase() === ADMIN_EMAIL);
+}
+
 export function isPermissionDeniedError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');
   return /permission denied|42501|row-level security/i.test(msg);
@@ -467,5 +473,59 @@ export async function deletePropertyListing(
 
   if (error) {
     throw new Error(error.message || 'Failed to delete property listing.');
+  }
+}
+
+export async function fetchAdminProperties(
+  status?: 'pending' | 'approved' | 'rejected'
+): Promise<Property[]> {
+  const supabase = getSupabase();
+
+  const buildQuery = (withJoin: boolean) => {
+    let query = supabase
+      .from('properties')
+      .select(withJoin ? '*, property_images(*)' : '*')
+      .order('created_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    return query;
+  };
+
+  const { data, error } = await buildQuery(true);
+
+  if (error) {
+    const fallback = await buildQuery(false);
+    if (fallback.error) {
+      throw new Error(fallback.error.message || 'Failed to fetch listings for admin review.');
+    }
+    return attachImagesSeparately(fallback.data ?? []);
+  }
+
+  return (data ?? []).map((row) => normalizePropertyRow(row));
+}
+
+export async function updatePropertyStatus(
+  propertyId: string,
+  status: 'approved' | 'rejected'
+): Promise<void> {
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('properties')
+    .update({ status })
+    .eq('id', propertyId)
+    .select('id, status');
+
+  if (error) {
+    throw new Error(error.message || `Failed to mark listing as ${status}.`);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      'Permission denied: unable to update listing status. Check Supabase RLS policies for admin updates.'
+    );
   }
 }
