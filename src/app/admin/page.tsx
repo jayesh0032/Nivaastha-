@@ -14,6 +14,7 @@ import {
   Tag,
   Home,
   RefreshCw,
+  User,
 } from 'lucide-react';
 import { useAuthStore } from '@/hooks/use-auth-store';
 import { useToast } from '@/hooks/use-toast';
@@ -252,11 +253,21 @@ export default function AdminPage() {
                       </>
                     )}
                   </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Phone className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" />
-                    <span className="font-medium text-foreground">
-                      {property.contact_phone || 'No phone'}
-                    </span>
+                  <div className="text-right space-y-0.5">
+                    {property.contact_name && (
+                      <div className="flex items-center justify-end text-xs text-muted-foreground">
+                        <User className="h-3.5 w-3.5 mr-1 shrink-0 text-primary" />
+                        <span className="font-medium text-foreground truncate max-w-[140px]">
+                          {property.contact_name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-end text-sm text-muted-foreground">
+                      <Phone className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" />
+                      <span className="font-medium text-foreground">
+                        {property.contact_phone || 'No phone'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

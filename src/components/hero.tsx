@@ -22,8 +22,9 @@ const heroImages: PropertyImage[] = [
 
 export function Hero() {
   const pathname = usePathname();
-  
-  const isRentActive = pathname === '/';
+
+  const isAllActive = pathname === '/';
+  const isRentActive = pathname === '/for-rent';
   const isSaleActive = pathname === '/for-sale';
 
   return (
@@ -35,6 +36,7 @@ export function Hero() {
             src={image.url}
             alt={image.hint}
             fill
+            referrerPolicy="no-referrer"
             className='object-cover opacity-0 animate-image-fade'
             style={{
               animationDelay: `${index * 5}s`,
@@ -58,8 +60,11 @@ export function Hero() {
         
         <div className="mt-8 flex flex-col items-center gap-4">
           <div className="flex flex-wrap justify-center gap-3">
+              <Button asChild size="lg" className="h-12 px-6 text-base font-semibold" variant={isAllActive ? 'default' : 'secondary'}>
+                  <Link href="/">All Properties</Link>
+              </Button>
               <Button asChild size="lg" className="h-12 px-6 text-base font-semibold" variant={isRentActive ? 'default' : 'secondary'}>
-                  <Link href="/">For Rent</Link>
+                  <Link href="/for-rent">For Rent</Link>
               </Button>
               <Button asChild size="lg" className="h-12 px-6 text-base font-semibold" variant={isSaleActive ? 'default' : 'secondary'}>
                   <Link href="/for-sale">For Sale</Link>

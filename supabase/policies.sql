@@ -1,6 +1,9 @@
 -- Run this in your Supabase Dashboard -> SQL Editor if you see
 -- "permission denied for table properties" or RLS errors.
 
+-- 0. Ensure contact_name column exists on properties
+ALTER TABLE public.properties ADD COLUMN IF NOT EXISTS contact_name text;
+
 -- 1. Grant API role privileges on public schema & tables
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT SELECT ON TABLE public.properties, public.property_images, public.profiles TO anon, authenticated;

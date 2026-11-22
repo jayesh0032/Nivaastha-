@@ -31,9 +31,26 @@ function extractImageUrl(img: Record<string, any>): string {
   ).trim();
 }
 
+function getSlotOrderFromUrl(url: string): number | null {
+  const match = url.match(/slot-(\d+)-/i);
+  if (!match) return null;
+  const idx = Number(match[1]);
+  return Number.isFinite(idx) ? idx : null;
+}
+
 function sortAndExtractImages(rawImages: any): string[] {
   if (!Array.isArray(rawImages)) return [];
   const sorted = [...rawImages].sort((a, b) => {
+    const urlA = extractImageUrl(a);
+    const urlB = extractImageUrl(b);
+    const slotA = getSlotOrderFromUrl(urlA);
+    const slotB = getSlotOrderFromUrl(urlB);
+    if (slotA !== null && slotB !== null && slotA !== slotB) {
+      return slotA - slotB;
+    }
+    if (slotA !== null && slotB === null) return -1;
+    if (slotA === null && slotB !== null) return 1;
+
     const orderA = a.display_order ?? a.sort_order ?? a.position ?? 0;
     const orderB = b.display_order ?? b.sort_order ?? b.position ?? 0;
     if (orderA !== orderB) return orderA - orderB;
@@ -44,11 +61,48 @@ function sortAndExtractImages(rawImages: any): string[] {
   return sorted.map(extractImageUrl).filter(Boolean);
 }
 
+const CONTACT_NAME_FALLBACK_REGEX = /^Contact Person:\s*(.+?)\r?\n---\r?\n([\s\S]*)$/;
+
+function parseContactNameAndDescription(row: any): { contact_name: string; description: string } {
+  const rawDescription = String(row.description ?? '');
+  const columnContactName = String(
+    row.contact_name ?? row.contact_person_name ?? row.owner_name ?? ''
+  ).trim();
+
+  if (columnContactName) {
+    const match = rawDescription.match(CONTACT_NAME_FALLBACK_REGEX);
+    return {
+      contact_name: columnContactName,
+      description: match ? match[2] : rawDescription,
+    };
+  }
+
+  const match = rawDescription.match(CONTACT_NAME_FALLBACK_REGEX);
+  if (match) {
+    return {
+      contact_name: match[1].trim(),
+      description: match[2],
+    };
+  }
+
+  return {
+    contact_name: '',
+    description: rawDescription,
+  };
+}
+
+function isMissingContactNameColumnError(message?: string): boolean {
+  if (!message) return false;
+  return /contact_name/i.test(message) && /(column|schema cache|does not exist)/i.test(message);
+}
+
 export function normalizePropertyRow(row: any, fallbackImages?: string[]): Property {
   const images =
     Array.isArray(row.property_images)
       ? sortAndExtractImages(row.property_images)
       : fallbackImages ?? [];
+
+  const { contact_name, description } = parseContactNameAndDescription(row);
 
   return {
     id: String(row.id),
@@ -62,7 +116,8 @@ export function normalizePropertyRow(row: any, fallbackImages?: string[]): Prope
     city: String(row.city ?? ''),
     locality: String(row.locality ?? ''),
     address: String(row.address ?? ''),
-    description: String(row.description ?? ''),
+    description,
+    contact_name,
     contact_phone: String(row.contact_phone ?? ''),
     status: String(row.status ?? 'pending'),
     created_at: String(row.created_at ?? new Date().toISOString()),
@@ -241,6 +296,7 @@ export type PropertyUpsertInput = {
   locality: string;
   address: string;
   description: string;
+  contact_name: string;
   contact_phone: string;
 };
 
@@ -277,14 +333,18 @@ async function uploadPropertyFiles(
   propertyId: string,
   files: File[]
 ): Promise<string[]> {
-  if (files.length === 0) return [];
+  const boundedFiles = files.slice(0, 6);
+  if (boundedFiles.length === 0) return [];
   const supabase = getSupabase();
   const uploadedUrls: string[] = [];
 
-  for (let i = 0; i < files.length; i++) {
-    const compressed = await compressImage(files[i], 1600, 0.82);
+  for (let i = 0; i < boundedFiles.length; i++) {
+    const originalFile = boundedFiles[i];
+    const compressed = await compressImage(originalFile, 1600, 0.82);
     const ext = compressed.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const uniqueSuffix = `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`;
+    const slotPrefixMatch = originalFile.name.match(/^(slot-\d+-[a-z0-9]+)/i);
+    const prefix = slotPrefixMatch ? `${slotPrefixMatch[1]}-` : '';
+    const uniqueSuffix = `${prefix}${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`;
     const filePath = `${ownerId}/${propertyId}/${uniqueSuffix}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
@@ -317,39 +377,62 @@ export async function createPropertyListing(
   files: File[]
 ): Promise<Property> {
   const supabase = getSupabase();
+  const trimmedContactName = input.contact_name.trim();
+  const trimmedDescription = input.description.trim();
 
-  const buildPayload = (bhkVal: string | number | null) => ({
-    owner_id: ownerId,
-    title: input.title.trim(),
-    listing_type: input.listing_type,
-    property_type: input.property_type,
-    price: Number(input.price),
-    bhk: bhkVal,
-    area_sqft: input.area_sqft ? Number(input.area_sqft) : null,
-    city: input.city.trim(),
-    locality: input.locality.trim(),
-    address: input.address.trim(),
-    description: input.description.trim(),
-    contact_phone: input.contact_phone.trim(),
-    status: 'pending',
-  });
+  const buildPayload = (bhkVal: string | number | null, includeContactNameColumn: boolean) => {
+    const base: Record<string, any> = {
+      owner_id: ownerId,
+      title: input.title.trim(),
+      listing_type: input.listing_type,
+      property_type: input.property_type,
+      price: Number(input.price),
+      bhk: bhkVal,
+      area_sqft: input.area_sqft ? Number(input.area_sqft) : null,
+      city: input.city.trim(),
+      locality: input.locality.trim(),
+      address: input.address.trim(),
+      description: includeContactNameColumn
+        ? trimmedDescription
+        : trimmedContactName
+          ? `Contact Person: ${trimmedContactName}\n---\n${trimmedDescription}`
+          : trimmedDescription,
+      contact_phone: input.contact_phone.trim(),
+      status: 'pending',
+    };
+    if (includeContactNameColumn) {
+      base.contact_name = trimmedContactName;
+    }
+    return base;
+  };
 
-  const initialBhk = input.bhk === 'N/A' || !input.bhk ? null : input.bhk;
-  let { data, error } = await supabase
-    .from('properties')
-    .insert(buildPayload(initialBhk))
-    .select('*')
-    .single();
+  let currentBhk: string | number | null = input.bhk === 'N/A' || !input.bhk ? null : input.bhk;
+  let includeContactNameColumn = true;
+  let data: any = null;
+  let error: any = null;
 
-  if (error && /invalid input syntax for type integer/i.test(error.message ?? '')) {
-    const numericBhk = initialBhk ? parseInt(initialBhk, 10) || null : null;
-    const retry = await supabase
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await supabase
       .from('properties')
-      .insert(buildPayload(numericBhk))
+      .insert(buildPayload(currentBhk, includeContactNameColumn))
       .select('*')
       .single();
-    data = retry.data;
-    error = retry.error;
+    data = res.data;
+    error = res.error;
+    if (!error) break;
+
+    if (includeContactNameColumn && isMissingContactNameColumnError(error.message)) {
+      includeContactNameColumn = false;
+      continue;
+    }
+    if (
+      typeof currentBhk === 'string' &&
+      /invalid input syntax for type integer/i.test(error.message ?? '')
+    ) {
+      currentBhk = parseInt(currentBhk, 10) || null;
+      continue;
+    }
+    break;
   }
 
   if (error || !data) {
@@ -377,41 +460,62 @@ export async function updatePropertyListing(
   removedImageUrls: string[] = []
 ): Promise<Property> {
   const supabase = getSupabase();
+  const trimmedContactName = input.contact_name.trim();
+  const trimmedDescription = input.description.trim();
 
-  const buildPayload = (bhkVal: string | number | null) => ({
-    title: input.title.trim(),
-    listing_type: input.listing_type,
-    property_type: input.property_type,
-    price: Number(input.price),
-    bhk: bhkVal,
-    area_sqft: input.area_sqft ? Number(input.area_sqft) : null,
-    city: input.city.trim(),
-    locality: input.locality.trim(),
-    address: input.address.trim(),
-    description: input.description.trim(),
-    contact_phone: input.contact_phone.trim(),
-  });
+  const buildPayload = (bhkVal: string | number | null, includeContactNameColumn: boolean) => {
+    const base: Record<string, any> = {
+      title: input.title.trim(),
+      listing_type: input.listing_type,
+      property_type: input.property_type,
+      price: Number(input.price),
+      bhk: bhkVal,
+      area_sqft: input.area_sqft ? Number(input.area_sqft) : null,
+      city: input.city.trim(),
+      locality: input.locality.trim(),
+      address: input.address.trim(),
+      description: includeContactNameColumn
+        ? trimmedDescription
+        : trimmedContactName
+          ? `Contact Person: ${trimmedContactName}\n---\n${trimmedDescription}`
+          : trimmedDescription,
+      contact_phone: input.contact_phone.trim(),
+    };
+    if (includeContactNameColumn) {
+      base.contact_name = trimmedContactName;
+    }
+    return base;
+  };
 
-  const initialBhk = input.bhk === 'N/A' || !input.bhk ? null : input.bhk;
-  let { data, error } = await supabase
-    .from('properties')
-    .update(buildPayload(initialBhk))
-    .eq('id', propertyId)
-    .eq('owner_id', ownerId)
-    .select('*')
-    .single();
+  let currentBhk: string | number | null = input.bhk === 'N/A' || !input.bhk ? null : input.bhk;
+  let includeContactNameColumn = true;
+  let data: any = null;
+  let error: any = null;
 
-  if (error && /invalid input syntax for type integer/i.test(error.message ?? '')) {
-    const numericBhk = initialBhk ? parseInt(initialBhk, 10) || null : null;
-    const retry = await supabase
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await supabase
       .from('properties')
-      .update(buildPayload(numericBhk))
+      .update(buildPayload(currentBhk, includeContactNameColumn))
       .eq('id', propertyId)
       .eq('owner_id', ownerId)
       .select('*')
       .single();
-    data = retry.data;
-    error = retry.error;
+    data = res.data;
+    error = res.error;
+    if (!error) break;
+
+    if (includeContactNameColumn && isMissingContactNameColumnError(error.message)) {
+      includeContactNameColumn = false;
+      continue;
+    }
+    if (
+      typeof currentBhk === 'string' &&
+      /invalid input syntax for type integer/i.test(error.message ?? '')
+    ) {
+      currentBhk = parseInt(currentBhk, 10) || null;
+      continue;
+    }
+    break;
   }
 
   if (error || !data) {

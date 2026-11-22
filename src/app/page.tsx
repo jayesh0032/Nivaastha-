@@ -136,7 +136,7 @@ export default function HomePage() {
         <div className="flex items-center gap-4">
           <SearchIcon className="h-8 w-8 text-primary" />
           <h2 className="text-3xl font-bold font-headline">
-            {isSearching ? 'Search Results' : 'Approved Properties'}
+            {isSearching ? 'Search Results' : 'All Properties'}
           </h2>
         </div>
         {isLoading ? (

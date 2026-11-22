@@ -35,7 +35,13 @@ import { Loader2, Search, LocateFixed, CheckCircle2, ClipboardList, PlusSquare }
 import type { Property } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/hooks/use-auth-store';
-import { PhotoUploadField } from './photo-upload-field';
+import {
+  PhotoUploadField,
+  PROPERTY_PHOTO_SLOTS,
+  MAX_PROPERTY_PHOTOS,
+  createEmptyPhotoSlots,
+  createInitialPhotoSlots,
+} from './photo-upload-field';
 import { Label } from './ui/label';
 import { getAddressFromCoordinates, searchAddress } from '@/lib/location-actions';
 import { Separator } from './ui/separator';
@@ -44,50 +50,70 @@ import {
   updatePropertyListing,
 } from '@/lib/properties-service';
 import Link from 'next/link';
+import type { PropertyPhotoSlots } from '@/lib/types';
 
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const photoSlotValueSchema = z.union([z.instanceof(File), z.string().min(1), z.null()]);
 
-const normalizeFiles = (val: any): File[] => {
-  if (!val) return [];
-  if (val instanceof FileList) return Array.from(val);
-  if (Array.isArray(val)) return val.filter((f): f is File => f instanceof File);
-  return val instanceof File ? [val] : [];
-};
+const formSchema = z.object({
+  title: z.string().min(5, 'Title must be at least 5 characters.'),
+  listing_type: z.enum(['rent', 'sale']),
+  property_type: z.string().min(1, 'Property type is required.'),
+  price: z.coerce
+    .number({ invalid_type_error: 'Please enter a valid price.' })
+    .positive('Price must be greater than 0.'),
+  bhk: z.string().min(1, 'Please select BHK.'),
+  area_sqft: z.coerce
+    .number({ invalid_type_error: 'Please enter a valid area.' })
+    .positive('Area must be greater than 0.')
+    .optional()
+    .or(z.literal('')),
+  city: z.string().min(2, 'City is required.'),
+  locality: z.string().min(2, 'Locality / area is required.'),
+  address: z.string().min(5, 'Full address is required.'),
+  contact_name: z
+    .string()
+    .trim()
+    .min(2, 'Contact person name is required.')
+    .max(100, 'Contact person name is too long.'),
+  contact_phone: z
+    .string()
+    .trim()
+    .min(10, 'Enter a valid 10-digit contact phone number.')
+    .max(15, 'Phone number is too long.'),
+  description: z.string().min(10, 'Description must be at least 10 characters.'),
+  photos: z
+    .object({
+      front: photoSlotValueSchema,
+      kitchen: photoSlotValueSchema,
+      bedroom: photoSlotValueSchema,
+      extra1: photoSlotValueSchema,
+      extra2: photoSlotValueSchema,
+      extra3: photoSlotValueSchema,
+    })
+    .superRefine((slots, ctx) => {
+      const missing: string[] = [];
+      if (!slots.front) missing.push('Front');
+      if (!slots.kitchen) missing.push('Kitchen');
+      if (!slots.bedroom) missing.push('Bedroom');
 
-const createFormSchema = (existingImageCount: number) =>
-  z.object({
-    title: z.string().min(5, 'Title must be at least 5 characters.'),
-    listing_type: z.enum(['rent', 'sale']),
-    property_type: z.string().min(1, 'Property type is required.'),
-    price: z.coerce
-      .number({ invalid_type_error: 'Please enter a valid price.' })
-      .positive('Price must be greater than 0.'),
-    bhk: z.string().min(1, 'Please select BHK.'),
-    area_sqft: z.coerce
-      .number({ invalid_type_error: 'Please enter a valid area.' })
-      .positive('Area must be greater than 0.')
-      .optional()
-      .or(z.literal('')),
-    city: z.string().min(2, 'City is required.'),
-    locality: z.string().min(2, 'Locality / area is required.'),
-    address: z.string().min(5, 'Full address is required.'),
-    contact_phone: z
-      .string()
-      .trim()
-      .min(10, 'Enter a valid 10-digit contact phone number.')
-      .max(15, 'Phone number is too long.'),
-    description: z.string().min(10, 'Description must be at least 10 characters.'),
-    photos: z
-      .any()
-      .refine((files) => {
-        const arr = normalizeFiles(files);
-        return arr.length + existingImageCount > 0;
-      }, 'Please upload at least one property photo.')
-      .refine((files) => {
-        const arr = normalizeFiles(files);
-        return arr.every((file) => ACCEPTED_IMAGE_TYPES.includes(file.type) || file.type.startsWith('image/'));
-      }, 'Only image files (.jpg, .png, .webp) are accepted.'),
-  });
+      if (missing.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Compulsory live photo${missing.length > 1 ? 's' : ''} missing: ${missing.join(', ')}.`,
+        });
+      }
+
+      const totalCount = PROPERTY_PHOTO_SLOTS.filter((meta) => Boolean(slots[meta.key])).length;
+      if (totalCount > MAX_PROPERTY_PHOTOS) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Maximum ${MAX_PROPERTY_PHOTOS} photos are allowed.`,
+        });
+      }
+    }),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 interface UploadFormProps {
   propertyToEdit?: Property;
@@ -99,9 +125,6 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
   const { user, profile } = useAuthStore();
 
   const isEditMode = Boolean(propertyToEdit);
-  const [keptImages, setKeptImages] = React.useState<string[]>(
-    propertyToEdit?.images ?? []
-  );
   const [removedImages, setRemovedImages] = React.useState<string[]>([]);
   const [submittedPending, setSubmittedPending] = React.useState(false);
 
@@ -110,11 +133,10 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
   const [addressQuery, setAddressQuery] = React.useState('');
   const [addressResults, setAddressResults] = React.useState<any[]>([]);
 
-  const formSchema = React.useMemo(
-    () => createFormSchema(keptImages.length),
-    [keptImages.length]
+  const initialSlots = React.useMemo<PropertyPhotoSlots>(
+    () => (propertyToEdit ? createInitialPhotoSlots(propertyToEdit.images) : createEmptyPhotoSlots()),
+    [propertyToEdit]
   );
-  type FormValues = z.infer<typeof formSchema>;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -129,9 +151,10 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
           city: propertyToEdit.city,
           locality: propertyToEdit.locality,
           address: propertyToEdit.address,
+          contact_name: propertyToEdit.contact_name || '',
           contact_phone: propertyToEdit.contact_phone,
           description: propertyToEdit.description,
-          photos: [],
+          photos: initialSlots,
         }
       : {
           title: '',
@@ -143,9 +166,10 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
           city: '',
           locality: '',
           address: '',
+          contact_name: profile?.full_name || profile?.name || '',
           contact_phone: profile?.phone || '',
           description: '',
-          photos: [],
+          photos: createEmptyPhotoSlots(),
         },
   });
 
@@ -161,8 +185,7 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
   }, [propertyType, form]);
 
   const handleRemoveExistingImage = (url: string) => {
-    setKeptImages((prev) => prev.filter((item) => item !== url));
-    setRemovedImages((prev) => [...prev, url]);
+    setRemovedImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
   };
 
   const handleFindOnMap = async () => {
@@ -274,7 +297,9 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
       return;
     }
 
-    const newFiles = normalizeFiles(values.photos);
+    const newFiles: File[] = PROPERTY_PHOTO_SLOTS.map((meta) => values.photos[meta.key])
+      .filter((item): item is File => item instanceof File)
+      .slice(0, MAX_PROPERTY_PHOTOS);
 
     try {
       const payload = {
@@ -288,6 +313,7 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
         locality: values.locality,
         address: values.address,
         description: values.description,
+        contact_name: values.contact_name,
         contact_phone: values.contact_phone,
       };
 
@@ -312,7 +338,17 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
           duration: 7000,
         });
         setSubmittedPending(true);
-        form.reset();
+        form.reset({
+          ...form.getValues(),
+          title: '',
+          price: undefined as any,
+          area_sqft: '' as any,
+          city: '',
+          locality: '',
+          address: '',
+          description: '',
+          photos: createEmptyPhotoSlots(),
+        });
       }
     } catch (error: any) {
       toast({
@@ -644,9 +680,23 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
 
             <FormField
               control={form.control}
+              name="contact_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact Person Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Rajesh Sharma" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="contact_phone"
               render={({ field }) => (
-                <FormItem className="md:col-span-2">
+                <FormItem>
                   <FormLabel>Contact Phone Number</FormLabel>
                   <FormControl>
                     <Input
@@ -664,18 +714,17 @@ export function UploadForm({ propertyToEdit }: UploadFormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline">Property Photos</CardTitle>
+            <CardTitle className="font-headline">Property Photos (Live Camera Only)</CardTitle>
             <CardDescription>
-              Upload clear photos of your property. The first photo will appear on the listing card.
+              Capture up to 6 live photos using the full-screen camera. Front, Kitchen, and Bedroom
+              photos are compulsory.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <PhotoUploadField
               name="photos"
-              label="Property Images"
-              description="Upload photos from your device or take live photos"
-              multiple
-              existingUrls={keptImages}
+              label="Live Property Photos"
+              description="Tap any slot below to open the full-screen camera and capture a live photo."
               onRemoveExistingUrl={handleRemoveExistingImage}
             />
           </CardContent>

@@ -320,8 +320,12 @@ export default function PropertyDetailPage() {
                   <UserCircle className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="font-semibold">Property Owner</p>
-                  <p className="text-sm text-muted-foreground">Verified Listing</p>
+                  <p className="font-semibold">
+                    {property.contact_name || 'Property Owner'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {property.contact_name ? 'Contact Person' : 'Verified Listing'}
+                  </p>
                 </div>
               </div>
               {property.contact_phone && (

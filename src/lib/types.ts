@@ -25,6 +25,18 @@ export type Address = {
   country: string;
 };
 
+export type PropertyPhotoSlotKey =
+  | 'front'
+  | 'kitchen'
+  | 'bedroom'
+  | 'extra1'
+  | 'extra2'
+  | 'extra3';
+
+export type PropertyPhotoSlotValue = File | string | null;
+
+export type PropertyPhotoSlots = Record<PropertyPhotoSlotKey, PropertyPhotoSlotValue>;
+
 export type Property = {
   id: string;
   owner_id: string;
@@ -38,6 +50,7 @@ export type Property = {
   locality: string;
   address: string;
   description: string;
+  contact_name: string;
   contact_phone: string;
   status: PropertyStatus;
   created_at: string;
