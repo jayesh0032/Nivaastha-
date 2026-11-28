@@ -1,17 +1,19 @@
 'use client';
 
+import * as React from 'react';
 import type { Property } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Heart, MapPin, BedDouble, Maximize2, Tag, Home } from 'lucide-react';
+import { Heart, MapPin, BedDouble, Maximize2, Tag, Home, Expand } from 'lucide-react';
 import { useSavedStore } from '@/hooks/use-saved-store';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/hooks/use-auth-store';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ImageLightbox } from './image-lightbox';
 
 interface PropertyCardProps {
   property: Property;
@@ -33,6 +35,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
   const router = useRouter();
   const { toast } = useToast();
   const saved = isSaved(property.id);
+  const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
 
   const handleSaveToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -58,26 +61,52 @@ export function PropertyCard({ property }: PropertyCardProps) {
     });
   };
 
-  const firstImage = property.images?.[0] || 'https://placehold.co/600x400.png';
+  const validImages = React.useMemo(
+    () => (property.images ?? []).filter((url) => Boolean(url && url.trim())),
+    [property.images]
+  );
+  const firstImage = validImages[0] || 'https://placehold.co/600x400.png';
   const locationParts = [property.locality, property.city].filter(Boolean);
   const location = locationParts.length > 0 ? locationParts.join(', ') : property.address || 'Location not available';
   const isForSale = property.listing_type === 'sale';
 
+  const handleOpenLightbox = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (validImages.length > 0) {
+      setIsLightboxOpen(true);
+    }
+  };
+
   return (
-    <Link href={`/property/${property.id}`} className="group block h-full">
-      <Card className="flex flex-col overflow-hidden transition-all duration-200 ease-in-out h-full group-hover:shadow-xl group-hover:-translate-y-1">
-        <CardHeader className="p-0 relative">
-          <div className="aspect-video relative overflow-hidden bg-muted">
-            <Image
-              src={firstImage}
-              alt={property.title}
-              fill
-              referrerPolicy="no-referrer"
-              className="object-cover transition-transform duration-200 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
-            <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors duration-200" />
-          </div>
+    <>
+      <Link href={`/property/${property.id}`} className="group block h-full">
+        <Card className="flex flex-col overflow-hidden transition-all duration-200 ease-in-out h-full group-hover:shadow-xl group-hover:-translate-y-1">
+          <CardHeader className="p-0 relative">
+            <div className="aspect-video relative overflow-hidden bg-muted">
+              <Image
+                src={firstImage}
+                alt={property.title}
+                fill
+                referrerPolicy="no-referrer"
+                className="object-cover transition-transform duration-200 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              />
+              <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors duration-200" />
+            </div>
+            {validImages.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="absolute bottom-3 right-3 h-7 px-2.5 text-xs bg-black/70 hover:bg-black/90 text-white border border-white/20 backdrop-blur-sm"
+                onClick={handleOpenLightbox}
+                aria-label={`View ${property.title} photos in full size`}
+              >
+                <Expand className="h-3.5 w-3.5 mr-1" />
+                {validImages.length > 1 ? `${validImages.length} Photos` : 'Full Size'}
+              </Button>
+            )}
           <Button
             size="icon"
             variant="secondary"
@@ -144,6 +173,13 @@ export function PropertyCard({ property }: PropertyCardProps) {
           ) : null}
         </CardFooter>
       </Card>
-    </Link>
+      </Link>
+      <ImageLightbox
+        images={validImages}
+        title={property.title}
+        open={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+      />
+    </>
   );
 }

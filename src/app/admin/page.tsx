@@ -15,6 +15,7 @@ import {
   Home,
   RefreshCw,
   User,
+  Expand,
 } from 'lucide-react';
 import { useAuthStore } from '@/hooks/use-auth-store';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SupabasePermissionAlert } from '@/components/supabase-permission-alert';
+import { ImageLightbox } from '@/components/image-lightbox';
 import { cn } from '@/lib/utils';
 
 type AdminTab = 'pending' | 'approved' | 'rejected';
@@ -72,6 +74,7 @@ export default function AdminPage() {
   const [updatingAction, setUpdatingAction] = React.useState<'approved' | 'rejected' | null>(null);
   const [permissionError, setPermissionError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
+  const [lightboxProperty, setLightboxProperty] = React.useState<Property | null>(null);
 
   React.useEffect(() => {
     if (initialized && !isAdmin) {
@@ -220,6 +223,20 @@ export default function AdminPage() {
                 >
                   {property.status}
                 </Badge>
+                {property.images && property.images.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setLightboxProperty(property)}
+                    className="absolute bottom-3 right-3 h-7 px-2.5 text-xs bg-black/70 hover:bg-black/90 text-white border border-white/20 backdrop-blur-sm"
+                  >
+                    <Expand className="h-3.5 w-3.5 mr-1" />
+                    {property.images.length > 1
+                      ? `${property.images.length} Photos`
+                      : 'Full Size'}
+                  </Button>
+                )}
               </CardHeader>
 
               <CardContent className="p-4 flex-grow space-y-3">
@@ -382,6 +399,13 @@ export default function AdminPage() {
           {renderListingsGrid(rejectedListings, 'rejected')}
         </TabsContent>
       </Tabs>
+
+      <ImageLightbox
+        images={lightboxProperty?.images ?? []}
+        title={lightboxProperty?.title ?? ''}
+        open={Boolean(lightboxProperty)}
+        onClose={() => setLightboxProperty(null)}
+      />
     </div>
   );
 }

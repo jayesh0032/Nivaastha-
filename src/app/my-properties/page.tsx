@@ -6,7 +6,7 @@ import { AuthGuard } from '@/components/auth-guard';
 import type { Property } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ClipboardList, Trash2, Pencil, Loader2, PlusSquare } from 'lucide-react';
+import { ClipboardList, Trash2, Pencil, Loader2, PlusSquare, Expand } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { deletePropertyListing, fetchMyProperties, isPermissionDeniedError } from '@/lib/properties-service';
 import { SupabasePermissionAlert } from '@/components/supabase-permission-alert';
+import { ImageLightbox } from '@/components/image-lightbox';
 import { cn } from '@/lib/utils';
 
 const formatCurrency = (value: number, isSale = false) => {
@@ -55,6 +56,7 @@ function MyPropertiesPageContent() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [permissionError, setPermissionError] = React.useState<string | null>(null);
+  const [lightboxProperty, setLightboxProperty] = React.useState<Property | null>(null);
 
   const loadMyListings = React.useCallback(async () => {
     if (!user?.id) return;
@@ -164,6 +166,20 @@ function MyPropertiesPageContent() {
                   >
                     {isForSale ? 'For Sale' : 'For Rent'}
                   </Badge>
+                  {property.images && property.images.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setLightboxProperty(property)}
+                      className="absolute bottom-3 right-3 h-7 px-2.5 text-xs bg-black/70 hover:bg-black/90 text-white border border-white/20 backdrop-blur-sm"
+                    >
+                      <Expand className="h-3.5 w-3.5 mr-1" />
+                      {property.images.length > 1
+                        ? `${property.images.length} Photos`
+                        : 'Full Size'}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="p-4 flex-grow flex flex-col space-y-2">
@@ -231,6 +247,13 @@ function MyPropertiesPageContent() {
           </Button>
         </div>
       )}
+
+      <ImageLightbox
+        images={lightboxProperty?.images ?? []}
+        title={lightboxProperty?.title ?? ''}
+        open={Boolean(lightboxProperty)}
+        onClose={() => setLightboxProperty(null)}
+      />
     </div>
   );
 }
